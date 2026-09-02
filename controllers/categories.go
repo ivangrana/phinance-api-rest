@@ -1,42 +1,32 @@
 package controllers
 
 import (
-	"Phinance/database"
 	dto "Phinance/dto"
-	"Phinance/models"
+	"Phinance/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 func GetAllCategories(c *gin.Context) {
-	var categories []models.Categories
-	var categoryDTOs []dto.CategoryDTO
-
-	resp := database.DB.Find(&categories)
-	if resp.Error != nil {
-		if resp.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
-		}
-	}
-	for _, category := range categories {
-		categoryDTO := dto.CategoryDTO{
-			ID:   category.ID,
-			Name: category.Name,
-		}
-		categoryDTOs = append(categoryDTOs, categoryDTO)
+	categoryDTOs, err := services.GetAllCategories()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	c.JSON(http.StatusOK, categoryDTOs)
 }
 
 func CreateCategory(c *gin.Context) {
-	var category models.Categories
+	var categoryDTO dto.CategoryCreateDTO
+	if err := c.ShouldBindJSON(&categoryDTO); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	resp := database.DB.Create(&category)
-	if resp.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": resp.Error.Error()})
+	if err := services.CreateCategory(categoryDTO); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -44,40 +34,53 @@ func CreateCategory(c *gin.Context) {
 }
 
 func GetCategoryById(c *gin.Context) {
-	var category models.Categories
-	var categoryDTO dto.CategoryDTO
 	id := c.Param("category_id")
-	database.DB.First(&category, "id = ?", id)
-
-	categoryDTO = dto.CategoryDTO{
-		ID:   category.ID,
-		Name: category.Name,
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "category_id is required"})
+		return
 	}
+
+	categoryDTO, err := services.GetCategoryById(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, categoryDTO)
 }
 
 func UpdateCategory(c *gin.Context) {
-	var category models.Categories
 	id := c.Param("category_id")
-	database.DB.First(&category, "id = ?", id)
-	if err := c.ShouldBindJSON(&category); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "category_id is required"})
 		return
 	}
-	if err := database.DB.Save(&category).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "Category updated successfully"})
 
+	var categoryDTO dto.CategoryUpdateDTO
+	if err := c.ShouldBindJSON(&categoryDTO); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := services.UpdateCategory(id, categoryDTO); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Category updated successfully"})
 }
 
 func DeleteCategory(c *gin.Context) {
-	var category models.Categories
 	id := c.Param("category_id")
-	if err := database.DB.Delete(&category, "id = ?", id).Error; err != nil {
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "category_id is required"})
+		return
+	}
+
+	if err := services.DeleteCategory(id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"Response": "Category deleted"})
 }
